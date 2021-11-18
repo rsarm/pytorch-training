@@ -1,0 +1,14 @@
+{
+    "train_batch_size": 256,
+    "gradient_accumulation_steps": 1,
+    "steps_per_print": 10,
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": 5e-05
+        }
+    },
+    "zero_optimization": {
+        "stage": 0
+    }
+}

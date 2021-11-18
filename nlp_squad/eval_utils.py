@@ -4,6 +4,8 @@ import torch
 import numpy as np
 from torch.nn import functional as F
 
+from rich.console import Console
+from rich.table import Table
 
 def normalize_text(text):
     text = text.lower()
@@ -37,6 +39,8 @@ class EvalUtility():
         self.input_ids = torch.tensor(x_eval[0])
         self.token_type_ids = torch.tensor(x_eval[1])
         self.attention_mask = torch.tensor(x_eval[2])
+        
+        self.set_rich_print()
 
     def results(self, logs=None):
         outputs_eval = self.model(input_ids=self.input_ids,
@@ -71,6 +75,22 @@ class EvalUtility():
             if normalized_pred_ans in normalized_true_ans:
                 count += 1
 
-            print(f'  - {normalized_pred_ans:30.30s} |'
-                  f' ref: {squad_eg.answer_text:30s} |'
-                  f' {squad_eg.question}')
+            # print(f'  - {normalized_pred_ans:30.30s} |'
+            #       f' ref: {squad_eg.answer_text:30s} |'
+            #       f' {squad_eg.question}')
+
+            self.table.add_row(f' {squad_eg.question}',
+                               f' {normalized_pred_ans:30.30s}',
+                               f' {squad_eg.answer_text:30s}')
+        self.show_table()
+
+    def set_rich_print(self):
+
+        self.table = Table(title="Evaluation", show_lines=True)
+        self.table.add_column("Question", justify="right", style="green")
+        self.table.add_column("Model's answer", justify="right", style="cyan", no_wrap=True)
+        self.table.add_column("Reference", style="magenta")
+
+    def show_table(self):
+        console = Console()
+        console.print(self.table)
