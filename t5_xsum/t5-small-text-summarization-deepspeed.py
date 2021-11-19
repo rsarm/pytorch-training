@@ -1,7 +1,7 @@
+import torch
 import argparse
 import deepspeed
 import datasets
-import torch
 from datasets import load_dataset  # , load_metric
 from transformers import (AdamW, AutoModelForSeq2SeqLM,
                           AutoTokenizer, DataCollatorForSeq2Seq)
@@ -18,7 +18,7 @@ parser.add_argument('--num-iters', type=int, default=10,
 parser = deepspeed.add_config_arguments(parser)
 args = parser.parse_args()
 
-model_name = 't5-3b'
+model_name = 't5-small'
 tokenizer = AutoTokenizer.from_pretrained(
     model_name, use_fast=True,
     cache_dir=f'./cache/{model_name}_tokenizer'
@@ -105,10 +105,9 @@ optimizer_grouped_parameters = [
 ]
 
 # optimizer = AdamW(optimizer_grouped_parameters, lr=5e-5)
-
 model_engine, optimizer, trainloader, __ = deepspeed.initialize(
     args=args, model=model, model_parameters=optimizer_grouped_parameters,
-    training_data=train_dataloader
+    training_data=train_dataset, collate_fn=data_collator
 )
 
 def print_peak_memory(prefix, device):
@@ -118,16 +117,14 @@ def print_peak_memory(prefix, device):
 
 print_peak_memory("Max memory allocated after creating DDP", 0)
 
-device = 0
-model.to(device)
 model.train();
 for epoch in range(1):
     for step, batch in enumerate(train_dataloader):
-        if step > 20:
-            break
+        # if step > 20:
+        #    break
 
         optimizer.zero_grad()
-        outputs = model(**batch.to(device))
+        outputs = model(**batch.to(model_engine.device))
         loss = outputs.loss
-        loss.backward() 
-        optimizer.step()
+        model_engine.backward(loss)
+        model_engine.step()
