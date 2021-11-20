@@ -13,4 +13,8 @@
 module load daint-gpu
 module load PyTorch
 
+export NCCL_DEBUG=INFO
+export NCCL_IB_HCA=ipogif0
+export NCCL_IB_CUDA_SUPPORT=1
+
 srun python cnn_distr.py
