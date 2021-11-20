@@ -6,9 +6,9 @@
 #SBATCH --ntasks-per-core=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
-##SBATCH --partition=debug
 #SBATCH --constraint=gpu
-#SBATCH --account=usup
+#SBATCH --reservation=pytorchcourse1
+#SBATCH --account=class02
 
 module load daint-gpu
 module load PyTorch
