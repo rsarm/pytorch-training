@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=benchmark_cnn
 #SBATCH --time=00:05:00
-#SBATCH --nodes=512
+#SBATCH --nodes=2
 #SBATCH --ntasks-per-core=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
@@ -10,6 +10,7 @@
 #SBATCH --constraint=gpu
 #SBATCH --account=usup
 
-. /scratch/snx3000/class101/course/course-environ.sh
+module load daint-gpu
+module load PyTorch
 
 srun python cnn_distr.py

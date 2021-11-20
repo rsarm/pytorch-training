@@ -1,23 +1,29 @@
 import numpy as np
 import random
 import time
+import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 import torch.optim as optim
-import torch.utils.data.distributed
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, Dataset
+from torch.nn.parallel import DistributedDataParallel
+from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from torchvision import models
 from pt_distr_env import setup_distr_env
 
 
 device = 0
 num_epochs = 5
-batch_size = 64
+batch_size_per_gpu = 64
 num_iters = 25
 model_name = 'resnet50'
 
+setup_distr_env()
+dist.init_process_group(backend="nccl")
+world_size = dist.get_world_size()
+rank = dist.get_rank()
+
 model = getattr(models, model_name)()
+model.to(device)
 
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
@@ -29,17 +35,25 @@ class SyntheticDataset(Dataset):
         return (data, target)
 
     def __len__(self):
-        return batch_size * num_iters
+        return batch_size_per_gpu * num_iters * world_size
 
 
-train_loader = DataLoader(SyntheticDataset(),
-                          batch_size=batch_size)
+ddp_model = DistributedDataParallel(model, device_ids=[0])
 
-model.to(device)
-
-setup_distr_env()
-dist.init_process_group(backend="nccl")
-ddp_model = DDP(model, device_ids=[0])
+train_set = SyntheticDataset()
+train_sampler = DistributedSampler(
+    train_set,
+    num_replicas=world_size,
+    rank=rank,
+    shuffle=False,
+    seed=42
+)
+train_loader = DataLoader(
+    train_set,
+    batch_size=batch_size_per_gpu,
+    shuffle=False,
+    sampler=train_sampler
+)
 
 
 def benchmark_step(model, imgs, labels):
@@ -57,12 +71,11 @@ for epoch in range(num_epochs):
         benchmark_step(ddp_model, imgs, labels)
 
     dt = time.time() - t0
-    imgs_sec.append(batch_size * num_iters / dt)
+    imgs_sec.append(batch_size_per_gpu * num_iters / dt)
 
-    rank = dist.get_rank()
     print(f' * Rank {rank} - Epoch {epoch:2d}: '
           f'{imgs_sec[epoch]:.2f} images/sec per GPU')
 
-imgs_sec_total = np.mean(imgs_sec) * dist.get_world_size()
-if dist.get_rank() == 0:
+imgs_sec_total = np.mean(imgs_sec) * world_size
+if rank == 0:
     print(f' * Total average: {imgs_sec_total:.2f} images/sec')
