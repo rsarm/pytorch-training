@@ -12,7 +12,6 @@ from torch.utils.data import DataLoader
 parser = argparse.ArgumentParser(description='PyTorch Synthetic Benchmark')
 parser.add_argument('--model', type=str, default='t5-3b',
                     help='Name of the model from HuggingFace')
-
 parser = deepspeed.add_config_arguments(parser)
 args = parser.parse_args()
 
@@ -30,7 +29,7 @@ model = AutoModelForSeq2SeqLM.from_pretrained(
 
 raw_datasets = load_dataset('xsum')
 
-max_source_length = 128  # 1024
+max_source_length = 128    # 1024
 max_target_length = 64
 ignore_pad_token_for_loss = True
 padding = False            # else 'max_length'
@@ -68,13 +67,10 @@ data_collator = DataCollatorForSeq2Seq(
     label_pad_token_id=label_pad_token_id
 )
 
-# column_names = raw_datasets["train"].column_names
-
 processed_datasets = raw_datasets.map(
     preprocess_function,
     batched=True,
     remove_columns=raw_datasets["train"].column_names,
-    # load_from_cache_file=not args.overwrite_cache,
     desc="Running tokenizer on dataset",
 )
 
@@ -106,8 +102,6 @@ optimizer_grouped_parameters = [
     },
 ]
 
-# optimizer = AdamW(optimizer_grouped_parameters, lr=5e-5)
-
 model_engine, optimizer, trainloader, __ = deepspeed.initialize(
     args=args, model=model, model_parameters=optimizer_grouped_parameters,
     training_data=train_dataset, collate_fn=data_collator
@@ -130,5 +124,8 @@ for epoch in range(1):
         model_engine.backward(loss)
         model_engine.step()
 
+        # stop after 100 steps for demo: 
         if step > 100:
             break
+
+        print_peak_memory("Max memory allocated during training", 0)
