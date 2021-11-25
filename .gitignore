@@ -1,0 +1,6 @@
+__pycache__
+cache
+.ipynb_checkpoints
+*.tfrecords
+*.tfrecord
+slurm-*out
