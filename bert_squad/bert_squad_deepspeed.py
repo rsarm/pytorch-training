@@ -108,11 +108,13 @@ model_engine, optimizer, trainloader, __ = deepspeed.initialize(
     model_parameters=parameters,
     training_data=train_set
 )
-print_peak_memory("Max memory allocated after creating DDP", 0)
+
+rank = torch.distributed.get_rank()
+print_peak_memory(f"Rank -{rank}: Max memory allocated after creating DDP", 0)
 
 
 # training
-for epoch in range(1):  # loop over the dataset multiple times
+for epoch in range(2):  # loop over the dataset multiple times
     for i, batch in enumerate(trainloader, 0):
         outputs = model(input_ids=batch[0].to(model_engine.device),
                         token_type_ids=batch[1].to(model_engine.device),
@@ -123,42 +125,43 @@ for epoch in range(1):  # loop over the dataset multiple times
         loss = outputs[0]
         model_engine.backward(loss)
         model_engine.step()
-        print_peak_memory("Max memory allocated after optimizer step", 0)
+        # print_peak_memory("Max memory allocated after optimizer step", 0)
 
-        if i > 10:
-            break
+        # if i > 10:
+        #     break
 
-print('Finished Training')
+if rank == 0:
+    print('Finished Training')
 
 
-if os.environ['SLURM_NODEID'] == '0':
-    model_hash = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-    model_path_name = './cache/model_trained_deepspeed_{model_hash}'
-
-    # save model's state_dict
-    torch.save(model.state_dict(), model_path_name)
-
-    # create the model again since the previous one is on the gpu
-    model_cpu = BertForQuestionAnswering.from_pretrained(
-        "bert-base-uncased",
-        cache_dir=os.path.join(bert_cache, 'bert-base-uncased_qa')
-    )
-
-    # load the model on cpu
-    model_cpu.load_state_dict(
-        torch.load(model_path_name,
-                   map_location=torch.device('cpu'))
-    )
-
-    # load the model on gpu
-    # model.load_state_dict(torch.load(model_path_name))
-
-    model.eval()
-
-    samples = np.random.choice(len(x_eval[0]), 50, replace=False)
-
-    eu.EvalUtility(
-        (x_eval[0][samples], x_eval[1][samples], x_eval[2][samples]),
-        model_cpu,
-        eval_squad_examples[samples]
-    ).results()
+    if os.environ['SLURM_NODEID'] == '0':
+        model_hash = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        model_path_name = './cache/model_trained_deepspeed_{model_hash}'
+    
+        # save model's state_dict
+        torch.save(model.state_dict(), model_path_name)
+    
+        # create the model again since the previous one is on the gpu
+        model_cpu = BertForQuestionAnswering.from_pretrained(
+            "bert-base-uncased",
+            cache_dir=os.path.join(bert_cache, 'bert-base-uncased_qa')
+        )
+    
+        # load the model on cpu
+        model_cpu.load_state_dict(
+            torch.load(model_path_name,
+                       map_location=torch.device('cpu'))
+        )
+    
+        # load the model on gpu
+        # model.load_state_dict(torch.load(model_path_name))
+    
+        model.eval()
+    
+        samples = np.random.choice(len(x_eval[0]), 50, replace=False)
+    
+        eu.EvalUtility(
+            (x_eval[0][samples], x_eval[1][samples], x_eval[2][samples]),
+            model_cpu,
+            eval_squad_examples[samples]
+        ).results()
